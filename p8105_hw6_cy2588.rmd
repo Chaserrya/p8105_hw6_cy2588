@@ -10,6 +10,9 @@ library(tidyverse)
 library(viridis)
 library(modelr)
 library(mgcv)
+library(tidyverse)
+library(modelr)
+library(p8105.datasets)
 knitr::opts_chunk$set(
 	echo = TRUE,
 	warning = FALSE,
@@ -26,12 +29,6 @@ scale_fill_discrete = scale_fill_viridis_d
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 ```
 
-
-```{r load_libraries}
-library(tidyverse)
-library(modelr)
-library(p8105.datasets)
-```
 
 ### Problem 1
 
@@ -228,7 +225,7 @@ cv_df %>%
 
 ## Problem 3
 
-Get data
+### Get data
 
 ```{r}
 weather_df = 
@@ -243,4 +240,79 @@ weather_df =
     tmax = tmax / 10) %>%
   select(name, id, everything())
 ```
+
+### Bootstrap
+```{r}
+set.seed(1)
+bootstrap_results = weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x) ),
+    results = map(models, broom::tidy),
+    results_glance = map(models, broom::glance)) %>% 
+  unnest(results,results_glance) %>% 
+  select(id = .id, term, estimate, r.squared) %>% 
+  mutate(term = recode(term, '(Intercept)' = 'intercept'))
+```
+
+
+```{r}
+bootstrap_results %>% 
+  head() %>% 
+  knitr::kable()
+```
+
+Plot the distribution of r^2
+```{r}
+bootstrap_results %>%
+    ggplot(aes(x = r.squared)) +
+  geom_density() +
+  labs(
+    title = "Distribution of r^2",
+    x = "r^2",
+    y = "Density"
+  )
+```
+
+Calculate the log values
+```{r}
+log_df = bootstrap_results %>% 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>% 
+  mutate(log_value = log(intercept*tmin))
+```
+
+Plot the distribution of log(β^0∗β^1)
+```{r}
+log_df %>% 
+  ggplot(aes(x = log_value)) +
+  geom_density() +
+  labs(
+        title = "Distribution of the log(^β0*^β1)",
+        x = "log(^β0*^β1)",
+        y = "Density"
+    )
+```
+
+95% confidence interval for r^2 and log(β^0∗β^1)
+ r^2
+```{r}
+bootstrap_results %>% group_by(term) %>% 
+  summarize(
+    ci_lower = quantile(r.squared, 0.025), 
+    ci_upper = quantile(r.squared, 0.975))
+```
+
+log(β^0∗β^1)
+```{r}
+log_df %>% 
+  summarize(
+    ci_lower = quantile(r.squared, 0.025), 
+    ci_upper = quantile(r.squared, 0.975))
+```
+
+
+
 
