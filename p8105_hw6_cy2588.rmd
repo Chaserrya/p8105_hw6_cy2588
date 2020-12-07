@@ -1,5 +1,5 @@
 ---
-title: "Homework 6 solutions"
+title: "Homework 6"
 author: "Chufeng Yang"
 date: '`r format(Sys.time(), "%Y-%m-%d")`'
 output: github_document
@@ -109,9 +109,9 @@ We could find the estimated ORs and CIs for each city. And some of them, like Al
 
 ## Problem 2
 
-Load and clean the data for regression analysis
+### Load and clean the data for regression analysis
 
-```{r}
+```{r message=FALSE}
 baby_df = 
   read_csv("./data/birthweight.csv") %>% 
   mutate(
@@ -140,35 +140,44 @@ baby_df =
   )
 ```
 
-Want to find some reasonable predictors for our model.
-First, take a look on all variables:
+### Take a look on all variables:
 ```{r}
 baby_df %>% 
   lm(bwt~.,data = .) %>% 
-  broom::tidy() %>% 
-  filter(p.value <= 0.05)
-```
-By a glance, we could find 7 potentially significant predictors(with smallest p-value): `babysex`,`bhead`,`bleangth`,`delwt`,`gaweeks`,`parity` and `smoken`.
-Those information about baby, such as length at birth, or head circumference at birth are obviously associated with birth weight, thus, I'm interested in other predictors.
-Moreover, given the relationship between mother and baby, I would like to choose those variables which reflecting mothers condition, such as `delwt`,`gaweeks`, `parity`, `smoken`, as predictors in the model.
-
-```{r}
-fit_model = lm(bwt ~ delwt + gaweeks + parity + smoken, data = baby_df)
+  broom::tidy() 
 ```
 
+
+### Propose a regression model for birthweight
+Personally, I would like to select the model based on a data-driven model-building process.  
+
+Given that I have never contacted with such kind of research, I choose to apply the backward stepwise regression, which uses AIC criterion for variable selection.
+
+```{r results='hide'}
+mult.fit = lm(bwt ~ .,data = baby_df)
+step(mult.fit, direction='backward')
+# Code result has been hidden in output file
+```
+
+The result of backward stepwise regression provide these variables:  
+babysex, bhead, blength, delwt, fincome, gaweeks,  mheight, mrace, parity, ppwt, smoken    
+Thus, I will take this variables as potential predictors.
+
+My regression model:
 ```{r}
-fit_model %>% 
-  broom::tidy() %>% 
-  select(term, estimate, p.value)
+fit_model = lm(formula = bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken, data = baby_df)
+```
+
+Add residuals and predictions 
+```{r}
+fit_df = 
+  baby_df %>%  
+  modelr::add_residuals(fit_model) %>% 
+  modelr::add_predictions(fit_model)
 ```
 
 Create a plot of model residuals against fitted values
 ```{r}
-fit_df = 
-  baby_df %>% 
-  select(bwt, delwt, gaweeks, parity, smoken) %>% 
-  modelr::add_residuals(fit_model) %>% 
-  modelr::add_predictions(fit_model)
 fit_df %>% 
   ggplot(aes(x = pred, y = resid)) + 
   geom_point(alpha = 0.3) +
@@ -179,14 +188,31 @@ fit_df %>%
     y = "Residuals"
   )
 ```
+  
+\ From the plot above, we could find that residuals of our model are basically symmetrically gathered around 0. But when predictions are relatively lower, there would be larger residuals. Meanwhile, we could see that the predictions are not symmetrically distributed but more like a left-skewed distribution, and even have some abnormal values(such as predictions lower than 0), which might indicate the problems in the model.
+
+### Compare my model to two others
 
 Comparing models:
+model 1:
 ```{r}
 model_1 = lm(bwt ~ blength + gaweeks, data = baby_df)
-model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+model_1 %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable()
 ```
 
+Model 2:
+```{r}
+model_2 = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+model_2 %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable()
+```
 
+Cross Validation
 ```{r}
 cv_df =
   crossv_mc(baby_df, 200) %>% 
@@ -199,7 +225,8 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    fit_model  = map(train, ~lm(bwt ~ delwt + gaweeks + parity + smoken, data = .x)),
+    fit_model  = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + 
+    gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x)),
     model_1  = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
     model_2  = map(train, ~gam(bwt ~ bhead * blength * babysex, data = as_tibble(.x)))) %>% 
   mutate(
@@ -221,6 +248,7 @@ cv_df %>%
   ggplot(aes(x = model, y = rmse)) + geom_violin()
 ```
 
+\ From the plot, we could find that our model has lowest rmse, which means that it could be the best model among these three models, and the model 2(using head circumference, length, sex) is better than model 3(sing length at birth and gestational age as predictors). However, the rmse value of all these three model are relatively high(rmse > 200), might indicate that all of them are not optimal model to predict baby’s birth weight.
 
 
 ## Problem 3
