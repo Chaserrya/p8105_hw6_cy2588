@@ -214,11 +214,13 @@ model_2 %>%
 
 Cross Validation
 ```{r}
+set.seed(1)
 cv_df =
   crossv_mc(baby_df, 200) %>% 
   mutate(
     train = map(train, as_tibble),
-    test = map(test, as_tibble))
+    test = map(test, as_tibble)
+    )
 ```
 
 ```{r}
@@ -283,12 +285,14 @@ bootstrap_results = weather_df %>%
   mutate(term = recode(term, '(Intercept)' = 'intercept'))
 ```
 
-
+Have a look on the results
 ```{r}
 bootstrap_results %>% 
   head() %>% 
   knitr::kable()
 ```
+
+### produce estimates of r^2 and log(^β0*^β1)
 
 Plot the distribution of r^2
 ```{r}
@@ -301,8 +305,10 @@ bootstrap_results %>%
     y = "Density"
   )
 ```
+  
+\ We could find that the r^2 estimates are basically bell-shape(indicating normal distribution) and concentrate around 0.91, and the approximate interval of r^2 is from 0.88 to 0.94, which is relatively high and indicating that the response tmax is actually related with the predictpr tmin. 
 
-Calculate the log values
+### Calculate the log values log(^β0*^β1)
 ```{r}
 log_df = bootstrap_results %>% 
   pivot_wider(
@@ -312,7 +318,7 @@ log_df = bootstrap_results %>%
   mutate(log_value = log(intercept*tmin))
 ```
 
-Plot the distribution of log(β^0∗β^1)
+### Plot the distribution of log(^β0*^β1)
 ```{r}
 log_df %>% 
   ggplot(aes(x = log_value)) +
@@ -323,22 +329,29 @@ log_df %>%
         y = "Density"
     )
 ```
+  
+\ We could find that the log(^β0*^β1) values are basically normal distributed in bell-shape, and concentrate around 2.01, and the approximate interval is from 1.925 to 2.10.
 
-95% confidence interval for r^2 and log(β^0∗β^1)
- r^2
+### 95% confidence interval 
+
+95% CI of r^2
 ```{r}
-bootstrap_results %>% group_by(term) %>% 
+bootstrap_results %>% 
   summarize(
+    estimate = "r^2",
     ci_lower = quantile(r.squared, 0.025), 
-    ci_upper = quantile(r.squared, 0.975))
+    ci_upper = quantile(r.squared, 0.975))%>% 
+  knitr::kable()
 ```
 
-log(β^0∗β^1)
+95% CI of log(^β0*^β1)
 ```{r}
 log_df %>% 
   summarize(
-    ci_lower = quantile(r.squared, 0.025), 
-    ci_upper = quantile(r.squared, 0.975))
+    estimate = "log(^β0*^β1)",
+    ci_lower = quantile(log_value, 0.025), 
+    ci_upper = quantile(log_value, 0.975))%>% 
+  knitr::kable()
 ```
 
 
